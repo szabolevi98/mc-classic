@@ -1214,6 +1214,7 @@ document.addEventListener('wheel', e => {
 // ── Mobil touch ──
 const touchMove = { x: 0, z: 0 };
 let touchJump = false;
+let touchSprint = false;   // toggle: érintésre be/ki
 {
   const joyZone = document.getElementById('joystick-zone');
   const joyKnob = document.getElementById('joystick-knob');
@@ -1281,6 +1282,23 @@ let touchJump = false;
   bindBtn('dig-btn', () => { digHeld = true; doDig(); actionCd = 0.28; }, () => { digHeld = false; });
   bindBtn('place-btn', () => { placeHeld = true; doPlace(); actionCd = 0.28; }, () => { placeHeld = false; });
   bindBtn('blocks-btn', () => { selectOpen ? closeSelect() : openSelect(); });
+  // SPRINT: toggle — az aktív állapotot a gomb kiemelése mutatja
+  {
+    const sBtn = document.getElementById('sprint-btn');
+    sBtn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      touchSprint = !touchSprint;
+      sBtn.classList.toggle('active', touchSprint);
+    }, { passive: false });
+  }
+  // ESC: pause be/ki (select nyitva → azt zárja)
+  document.getElementById('esc-btn').addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (!started) return;
+    if (selectOpen) closeSelect();
+    else if (paused) hidePause();
+    else showPause();
+  }, { passive: false });
 }
 // select háttérre kattintva zárás
 document.getElementById('select').addEventListener('click', e => {
@@ -1475,7 +1493,7 @@ function loop() {
   const len = Math.hypot(mx, mz) || 1;
   const moving = Math.hypot(mx, mz) > 0.01;
   const wet = inWater();
-  const sprinting = !isMobile && keys['ShiftLeft'] && !selectOpen && moving;
+  const sprinting = moving && (isMobile ? touchSprint : (keys['ShiftLeft'] && !selectOpen));
   const spd = SPEED * (wet ? 0.6 : 1) * (sprinting ? 1.6 : 1);
   player.vx = (mx / len) * spd * (moving ? 1 : 0);
   player.vz = (mz / len) * spd * (moving ? 1 : 0);

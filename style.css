@@ -172,7 +172,7 @@ canvas { display: block; image-rendering: pixelated; }
   width: 55%; height: 100%;
   touch-action: none; z-index: 40;
 }
-#jump-btn, #dig-btn, #place-btn, #blocks-btn {
+#jump-btn, #sprint-btn, #dig-btn, #place-btn, #blocks-btn, #esc-btn {
   position: fixed; border-radius: 50%;
   width: 68px; height: 68px;
   background: rgba(255,255,255,0.14);
@@ -185,11 +185,14 @@ canvas { display: block; image-rendering: pixelated; }
   touch-action: none; z-index: 50; user-select: none;
 }
 #jump-btn  { bottom: 84px;  right: 52px; }
+#sprint-btn{ bottom: 84px;  right: 140px; }
 #dig-btn   { bottom: 170px; right: 30px; }
 #place-btn { bottom: 170px; right: 118px; }
 #blocks-btn{ top: 14px; right: 14px; width: auto; height: auto;
              border-radius: 6px; padding: 10px 16px; z-index: 70; }
-#jump-btn.active, #dig-btn.active, #place-btn.active { background: rgba(255,255,255,0.4); }
+#esc-btn   { top: 14px; right: 118px; width: auto; height: auto;
+             border-radius: 6px; padding: 10px 16px; z-index: 70; }
+#jump-btn.active, #sprint-btn.active, #dig-btn.active, #place-btn.active { background: rgba(255,255,255,0.4); }
 
 /* ── Mobil responsive menü ── */
 @media (max-width: 600px) {
