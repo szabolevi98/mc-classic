@@ -1,0 +1,195 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: monospace; }
+canvas { display: block; image-rendering: pixelated; }
+
+/* ── Verzió-címke ── */
+#ver {
+  position: fixed; top: 6px; left: 8px; z-index: 10;
+  color: #fff; font-size: 14px; font-weight: bold;
+  text-shadow: 2px 2px 0 #3f3f3f;
+  pointer-events: none;
+}
+
+/* ── Célkereszt ── */
+#crosshair {
+  position: fixed; top: 50%; left: 50%; z-index: 10;
+  transform: translate(-50%,-50%);
+  color: rgba(255,255,255,0.85); font-size: 22px;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+
+/* ── Kattintás-elkapó (pointer lock) ── */
+#click-catcher { position: fixed; inset: 0; z-index: 5; cursor: crosshair; }
+
+/* ── Hotbar ── */
+#hotbar {
+  position: fixed; bottom: 8px; left: 50%; z-index: 20;
+  transform: translateX(-50%);
+  display: flex; gap: 0;
+  background: rgba(0,0,0,0.35);
+  border: 2px solid rgba(255,255,255,0.35);
+  padding: 2px;
+  pointer-events: none;
+}
+.hb-slot {
+  width: 46px; height: 46px;
+  border: 2px solid rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+}
+.hb-slot.sel { border: 2px solid #fff; background: rgba(255,255,255,0.15); }
+.hb-slot canvas { width: 36px; height: 36px; image-rendering: pixelated; }
+
+/* ── Select block (B) ── */
+#select {
+  position: fixed; top: 50%; left: 50%; z-index: 60;
+  transform: translate(-50%,-50%);
+  width: min(760px, 94vw);
+  background: rgba(20,26,38,0.72);
+  border: 2px solid rgba(255,255,255,0.25);
+  padding: 18px 20px 24px;
+  display: none;
+}
+#select.show { display: block; }
+#select h2 {
+  color: #fff; text-align: center; font-size: 22px;
+  text-shadow: 2px 2px 0 #3f3f3f;
+  margin-bottom: 16px; letter-spacing: 1px;
+}
+#select-grid {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+}
+.sel-item {
+  width: 52px; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border: 2px solid transparent;
+}
+.sel-item:hover { border-color: rgba(255,255,255,0.85); background: rgba(255,255,255,0.12); }
+.sel-item canvas { width: 40px; height: 40px; image-rendering: pixelated; }
+
+/* ── Főmenü ── */
+#menu {
+  position: fixed; inset: 0; z-index: 100;
+  background: #161616;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+#menu h1 {
+  color: #fff; font-size: 46px; letter-spacing: 6px;
+  text-shadow: 3px 3px 0 #3f3f3f;
+}
+#menu .subtitle { color: #888; font-size: 12px; letter-spacing: 3px; margin-bottom: 18px; }
+#menu-buttons { display: flex; flex-direction: column; gap: 10px; }
+#menu button, #pause button {
+  min-width: 320px;
+  background: #6d6d6d;
+  border: 2px solid #000;
+  box-shadow: inset -2px -3px 0 rgba(0,0,0,0.35), inset 2px 2px 0 rgba(255,255,255,0.28);
+  color: #e8e8e8; font-family: monospace; font-size: 15px;
+  letter-spacing: 1px; padding: 12px 30px; cursor: pointer;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.5);
+}
+#menu button:hover:not(:disabled), #pause button:hover { background: #7d8cbf; color: #fff; }
+#menu button:disabled { opacity: 0.4; cursor: default; }
+
+#settings { margin-top: 18px; }
+.setting-row {
+  display: flex; align-items: center; gap: 10px;
+  color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 2px;
+  cursor: pointer; user-select: none;
+}
+.setting-row:hover { color: rgba(255,255,255,0.9); }
+.setting-box {
+  width: 14px; height: 14px;
+  border: 1px solid rgba(255,255,255,0.5);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; color: #fff; flex-shrink: 0;
+}
+
+#progress-wrap {
+  width: 300px; height: 4px;
+  background: rgba(255,255,255,0.12);
+  margin-top: 20px; display: none;
+}
+#progress-bar { height: 100%; width: 0%; background: #7db954; }
+#progress-label {
+  color: rgba(255,255,255,0.4); font-size: 11px;
+  letter-spacing: 3px; margin-top: 8px; display: none;
+}
+
+/* ── Pause ── */
+#pause {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0,0,0,0.55);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 10px;
+}
+#pause.show { display: flex; }
+#pause h2 {
+  color: #fff; font-size: 26px; letter-spacing: 3px;
+  text-shadow: 2px 2px 0 #3f3f3f; margin-bottom: 14px;
+}
+
+/* ── Toast ── */
+#toast {
+  position: fixed; bottom: 70px; left: 50%; z-index: 80;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.65); color: #9f9;
+  font-size: 13px; letter-spacing: 2px;
+  padding: 8px 22px; border: 1px solid rgba(255,255,255,0.2);
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+#toast.show { opacity: 1; }
+
+/* ── Mobil touch UI ── */
+#mobile-ui { display: none; }
+#joystick-zone {
+  position: fixed; bottom: 70px; left: 45px;
+  width: 124px; height: 124px; border-radius: 50%;
+  background: rgba(255,255,255,0.10);
+  border: 2px solid rgba(255,255,255,0.45);
+  box-shadow: 0 0 14px rgba(0,0,0,0.4), inset 0 0 20px rgba(0,0,0,0.25);
+  touch-action: none; z-index: 50;
+}
+#joystick-knob {
+  position: absolute; width: 50px; height: 50px; border-radius: 50%;
+  background: rgba(255,255,255,0.40);
+  border: 2px solid rgba(255,255,255,0.8);
+  top: 50%; left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+}
+#look-zone {
+  position: fixed; top: 0; right: 0;
+  width: 55%; height: 100%;
+  touch-action: none; z-index: 40;
+}
+#jump-btn, #dig-btn, #place-btn, #blocks-btn {
+  position: fixed; border-radius: 50%;
+  width: 68px; height: 68px;
+  background: rgba(255,255,255,0.14);
+  border: 2px solid rgba(255,255,255,0.55);
+  box-shadow: 0 0 12px rgba(0,0,0,0.4), inset 0 0 14px rgba(0,0,0,0.25);
+  color: #fff; font-size: 10px; letter-spacing: 1px;
+  font-family: monospace; text-align: center;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  touch-action: none; z-index: 50; user-select: none;
+}
+#jump-btn  { bottom: 84px;  right: 52px; }
+#dig-btn   { bottom: 170px; right: 30px; }
+#place-btn { bottom: 170px; right: 118px; }
+#blocks-btn{ top: 14px; right: 14px; width: auto; height: auto;
+             border-radius: 6px; padding: 10px 16px; z-index: 70; }
+#jump-btn.active, #dig-btn.active, #place-btn.active { background: rgba(255,255,255,0.4); }
+
+/* ── Mobil responsive menü ── */
+@media (max-width: 600px) {
+  #menu h1 { font-size: 9vw; letter-spacing: 2vw; }
+  #menu button, #pause button { min-width: 74vw; font-size: 3.8vw; padding: 3vw 6vw; }
+  #settings .setting-row { font-size: 3vw; }
+  .hb-slot { width: 38px; height: 38px; }
+  .hb-slot canvas { width: 30px; height: 30px; }
+  .sel-item { width: 44px; height: 44px; }
+  .sel-item canvas { width: 34px; height: 34px; }
+}

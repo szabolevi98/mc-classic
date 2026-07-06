@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MC Classic</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ── Főmenü ── -->
+<div id="menu">
+  <h1>MC CLASSIC</h1>
+  <div class="subtitle">javascript clone</div>
+  <div id="menu-buttons">
+    <button id="btn-new">GENERATE NEW WORLD</button>
+    <button id="btn-load" disabled>LOAD SAVED WORLD</button>
+  </div>
+  <div id="settings">
+    <label class="setting-row" id="set-mobile">
+      <span class="setting-box" id="box-mobile">✕</span>
+      MOBILE TOUCH CONTROL
+    </label>
+  </div>
+  <div id="progress-wrap"><div id="progress-bar"></div></div>
+  <div id="progress-label">GENERATING…</div>
+</div>
+
+<!-- ── Pause ── -->
+<div id="pause">
+  <h2>GAME PAUSED</h2>
+  <button id="btn-resume">BACK TO GAME</button>
+  <button id="btn-save">SAVE WORLD</button>
+  <button id="btn-exit">SAVE &amp; QUIT TO MENU</button>
+</div>
+
+<!-- ── Select block (B) ── -->
+<div id="select">
+  <h2>Select block</h2>
+  <div id="select-grid"></div>
+</div>
+
+<!-- ── HUD ── -->
+<div id="ver">0.0.23a_01 (clone)</div>
+<div id="crosshair">+</div>
+<div id="hotbar"></div>
+<div id="toast"></div>
+
+<!-- ── Mobil touch UI ── -->
+<div id="mobile-ui">
+  <div id="joystick-zone"><div id="joystick-knob"></div></div>
+  <div id="look-zone"></div>
+  <div id="jump-btn">JUMP</div>
+  <div id="dig-btn">DIG</div>
+  <div id="place-btn">PLACE</div>
+  <div id="blocks-btn">BLOCKS</div>
+</div>
+
+<div id="click-catcher"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
