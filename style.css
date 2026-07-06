@@ -79,7 +79,15 @@ canvas { display: block; image-rendering: pixelated; }
   text-shadow: 3px 3px 0 #3f3f3f;
 }
 #menu .subtitle { color: #888; font-size: 12px; letter-spacing: 3px; margin-bottom: 18px; }
-#menu-buttons { display: flex; flex-direction: column; gap: 10px; }
+#slot-list { display: flex; flex-direction: column; gap: 8px; }
+.slot-row { display: flex; gap: 8px; align-items: stretch; }
+.slot-row button { flex: 1; }
+.slot-row .slot-del {
+  flex: 0 0 auto; min-width: auto !important;
+  padding: 12px 18px !important;
+  color: #e88;
+}
+.slot-row .slot-del:hover { background: #a04040 !important; color: #fff; }
 #menu button, #pause button {
   min-width: 320px;
   background: #6d6d6d;

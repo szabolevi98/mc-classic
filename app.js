@@ -9,7 +9,6 @@
 const SX = 128, SZ = 128, SY = 64;   // világméret
 const SEA = 30;                      // tengerszint (legfelső vízblokk y-ja)
 const CHUNK = 16;                    // chunk oldalhossz (oszlopokban)
-const SAVE_KEY = 'mcc_save';
 
 // ═══ RNG + ZAJ ═══
 let SEED = (Math.random() * 0xFFFFFFFF) >>> 0;
@@ -65,7 +64,8 @@ const AIR = 0, STONE = 1, GRASS = 2, DIRT = 3, COBBLE = 4, PLANKS = 5, BEDROCK =
       BRICK = 18, MOSSY = 19, OBSIDIAN = 20, SHELF = 21, WATER = 22,
       WOOL0 = 23, /* 23..38: 16 gyapjúszín */
       FLOWER_Y = 39, FLOWER_R = 40, FLOWER_B = 41, FLOWER_P = 42, FLOWER_W = 43,
-      MUSH_R = 44, MUSH_B = 45, SAPLING = 46;
+      MUSH_R = 44, MUSH_B = 45, SAPLING = 46,
+      DIAMOND_ORE = 47, DIAMOND_BLK = 48;
 
 // ═══ TEXTÚRA-ATLASZ (procedurális, 16px csempék, 16×4 rács) ═══
 const TILE = 16, ACOLS = 16, AROWS = 4;
@@ -199,6 +199,7 @@ function oreTile(cr, cg, cb) {
 const T_COAL = oreTile(35, 35, 35);
 const T_IRON = oreTile(216, 167, 133);
 const T_GOLD = oreTile(252, 238, 105);
+const T_DIAMOND = oreTile(115, 232, 226);
 function metalTile(cr, cg, cb) {
   return addTile((g, r) => {
     noisy(g, r, cr, cg, cb, 5);
@@ -208,6 +209,7 @@ function metalTile(cr, cg, cb) {
 }
 const T_IRON_BLK = metalTile(222, 222, 222);
 const T_GOLD_BLK = metalTile(248, 216, 66);
+const T_DIAMOND_BLK = metalTile(112, 222, 214);
 const T_BRICK = addTile((g, r) => {
   for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
     const row = Math.floor(y / 4);
@@ -331,7 +333,7 @@ BLOCKS[MOSSY]    = B('Mossy Cobble', [T_MOSSY, T_MOSSY, T_MOSSY]);
 BLOCKS[OBSIDIAN] = B('Obsidian', [T_OBSIDIAN, T_OBSIDIAN, T_OBSIDIAN]);
 BLOCKS[SHELF]    = B('Bookshelf', [T_PLANKS, T_PLANKS, T_SHELF]);
 BLOCKS[WATER]    = B('Water', [T_WATER, T_WATER, T_WATER],
-                     { solid: false, opaque: false, water: true, sel: false });
+                     { solid: false, opaque: false, water: true, sel: true });
 for (let i = 0; i < 16; i++) {
   BLOCKS[WOOL0 + i] = B('Wool', [T_WOOL[i], T_WOOL[i], T_WOOL[i]]);
 }
@@ -347,13 +349,16 @@ BLOCKS[FLOWER_W] = plantB('White Flower', T_FLOWER_W);
 BLOCKS[MUSH_R]   = plantB('Red Mushroom', T_MUSH_R);
 BLOCKS[MUSH_B]   = plantB('Brown Mushroom', T_MUSH_B);
 BLOCKS[SAPLING]  = plantB('Sapling', T_SAPLING);
+BLOCKS[DIAMOND_ORE] = B('Diamond Ore', [T_DIAMOND, T_DIAMOND, T_DIAMOND]);
+BLOCKS[DIAMOND_BLK] = B('Diamond Block', [T_DIAMOND_BLK, T_DIAMOND_BLK, T_DIAMOND_BLK]);
 
 // a Select block menü sorrendje
 const SELECT_ORDER = [
   STONE, COBBLE, DIRT, GRASS, PLANKS, LOG, LEAVES, SAPLING,
   FLOWER_Y, FLOWER_R, FLOWER_B, FLOWER_P, FLOWER_W, MUSH_R, MUSH_B,
-  SAND, GRAVEL, SPONGE, GLASS, COAL_ORE, IRON_ORE, GOLD_ORE,
-  IRON_BLK, GOLD_BLK, BRICK, MOSSY, OBSIDIAN, SHELF,
+  SAND, GRAVEL, WATER, SPONGE, GLASS,
+  COAL_ORE, IRON_ORE, GOLD_ORE, DIAMOND_ORE,
+  IRON_BLK, GOLD_BLK, DIAMOND_BLK, BRICK, MOSSY, OBSIDIAN, SHELF,
   WOOL0, WOOL0+1, WOOL0+2, WOOL0+3, WOOL0+4, WOOL0+5, WOOL0+6, WOOL0+7,
   WOOL0+8, WOOL0+9, WOOL0+10, WOOL0+11, WOOL0+12, WOOL0+13, WOOL0+14, WOOL0+15,
 ];
@@ -405,16 +410,33 @@ async function generateWorld(onProgress) {
   // 1) domborzat
   for (let x = 0; x < SX; x++) for (let z = 0; z < SZ; z++) heights[x * SZ + z] = terrainH(x, z);
 
+  // kilátszó szürke szikla: meredek lejtőkön + magas hegyek foltjain
+  const stoneTop = new Uint8Array(SX * SZ);
+  for (let x = 0; x < SX; x++) for (let z = 0; z < SZ; z++) {
+    const h = heights[x * SZ + z];
+    const n1 = x > 0 ? heights[(x - 1) * SZ + z] : h;
+    const n2 = x < SX - 1 ? heights[(x + 1) * SZ + z] : h;
+    const n3 = z > 0 ? heights[x * SZ + z - 1] : h;
+    const n4 = z < SZ - 1 ? heights[x * SZ + z + 1] : h;
+    const slope = Math.max(Math.abs(h - n1), Math.abs(h - n2), Math.abs(h - n3), Math.abs(h - n4));
+    if (slope >= 3 || (h > SEA + 12 && fbm2(x * 0.06 + 70, z * 0.06 + 70) > 0.60))
+      stoneTop[x * SZ + z] = 1;
+  }
+
   for (let x = 0; x < SX; x++) {
     for (let z = 0; z < SZ; z++) {
       const h = heights[x * SZ + z];
       const beach = h <= SEA + 1;
+      const st = stoneTop[x * SZ + z] === 1 && !beach;
       for (let y = 0; y <= h; y++) {
         let b;
-        if (y === 0) b = BEDROCK;
+        // göröngyös bedrock-alj: 1-3 blokk vastag, véletlenszerűen
+        if (y === 0 ||
+            (y === 1 && hash2(x + 9100, z + 9100) < 0.66) ||
+            (y === 2 && hash2(x + 9200, z + 9200) < 0.30)) b = BEDROCK;
         else if (y < h - 3) b = STONE;
-        else if (y < h) b = beach ? SAND : DIRT;
-        else b = beach ? SAND : (h > SEA ? GRASS : DIRT);
+        else if (y < h) b = beach ? SAND : (st ? STONE : DIRT);
+        else b = beach ? SAND : (st ? STONE : (h > SEA ? GRASS : DIRT));
         world[idx(x, y, z)] = b;
       }
       // mélyebb tengerfenék: kavics-foltok
@@ -425,11 +447,14 @@ async function generateWorld(onProgress) {
     if (x % 16 === 15) await onProgress(0.00 + (x / SX) * 0.30, 'TERRAIN');
   }
 
-  // 2) barlangok: üreg-zaj + két "féreg-járat" zaj kombináció
+  // 2) barlangok: üreg-zaj + két "féreg-járat" zaj kombináció.
+  // A barlangszáj-zónákban a járat a FELSZÍNT is átütheti → lejáratok.
+  const entranceZone = (x, z) => fbm2(x * 0.045 + 400, z * 0.045 + 400) > 0.80;
   for (let x = 0; x < SX; x++) {
     for (let z = 0; z < SZ; z++) {
       const h = heights[x * SZ + z];
-      const top = h - 4;                     // a felszín alatt marad (víz nem folyik be)
+      const breach = entranceZone(x, z) && h > SEA + 2;
+      const top = breach ? h : h - 4;       // víz közelében a felszín alatt marad
       for (let y = 4; y <= top; y++) {
         const cave = noise3(x * 0.075, y * 0.11, z * 0.075) > 0.685;
         const w1 = noise3(x * 0.045, y * 0.06, z * 0.045);
@@ -439,6 +464,26 @@ async function generateWorld(onProgress) {
       }
     }
     if (x % 16 === 15) await onProgress(0.30 + (x / SX) * 0.30, 'CAVES');
+  }
+  // barlangszájak környéke: a föld helyett szürke szikla látszódjon
+  for (let x = 1; x < SX - 1; x++) {
+    for (let z = 1; z < SZ - 1; z++) {
+      if (!entranceZone(x, z)) continue;
+      const h = heights[x * SZ + z];
+      if (h <= SEA + 2) continue;
+      let breached = false;
+      for (let y = h; y > h - 3 && y > 0; y--)
+        if (world[idx(x, y, z)] === AIR) { breached = true; break; }
+      if (!breached) continue;
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+        const nx = x + dx, nz = z + dz;
+        const hn = heights[nx * SZ + nz];
+        for (let y = Math.max(1, hn - 3); y <= hn; y++) {
+          const b = world[idx(nx, y, nz)];
+          if (b === DIRT || b === GRASS) world[idx(nx, y, nz)] = STONE;
+        }
+      }
+    }
   }
 
   // 3) érc-telérek (véletlen bolyongás a kőben)
@@ -459,6 +504,7 @@ async function generateWorld(onProgress) {
   veins(340, COAL_ORE, 52, 7);
   veins(200, IRON_ORE, 38, 5);
   veins(90,  GOLD_ORE, 20, 4);
+  veins(64,  DIAMOND_ORE, 14, 4);
   await onProgress(0.62, 'ORES');
 
   // 4) fák
@@ -544,13 +590,34 @@ atlasTex.generateMipmaps = false;
 
 const matOpaque = new THREE.MeshBasicMaterial({ map: atlasTex, vertexColors: true, side: THREE.DoubleSide });
 const matCutout = new THREE.MeshBasicMaterial({ map: atlasTex, vertexColors: true, side: THREE.DoubleSide, alphaTest: 0.5 });
-const matWater  = new THREE.MeshBasicMaterial({ map: atlasTex, vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.65, depthWrite: false });
+const matWater  = new THREE.MeshBasicMaterial({ map: atlasTex, vertexColors: true, side: THREE.DoubleSide, transparent: true, opacity: 0.62 });
 
-// környező óceán a látóhatárig (Classic-érzés)
-const oceanMat = new THREE.MeshBasicMaterial({ color: 0x2d54c8, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
-const ocean = new THREE.Mesh(new THREE.PlaneGeometry(4000, 4000), oceanMat);
-ocean.rotation.x = -Math.PI / 2;
-ocean.position.set(SX / 2, SEA + 0.86, SZ / 2);
+// ── környező óceán a látóhatárig — GYŰRŰ alakú: a pálya felett LYUK van,
+// különben a térkép alatt átderengene egy fantom "vízréteg" ásás közben! ──
+const WSURF = SEA + 0.9;   // vízfelszín (a blokk teteje alatt 0.1-gyel, mindenhol)
+const waterTileCanvas = document.createElement('canvas');
+waterTileCanvas.width = waterTileCanvas.height = TILE;
+waterTileCanvas.getContext('2d').drawImage(atlasCanvas,
+  (T_WATER % ACOLS) * TILE, Math.floor(T_WATER / ACOLS) * TILE, TILE, TILE, 0, 0, TILE, TILE);
+const oceanTex = new THREE.CanvasTexture(waterTileCanvas);
+oceanTex.magFilter = THREE.NearestFilter;
+oceanTex.minFilter = THREE.NearestFilter;
+oceanTex.wrapS = oceanTex.wrapT = THREE.RepeatWrapping;
+const oceanShape = new THREE.Shape();
+oceanShape.moveTo(-2000, -2000); oceanShape.lineTo(2000, -2000);
+oceanShape.lineTo(2000, 2000);   oceanShape.lineTo(-2000, 2000);
+oceanShape.closePath();
+const oceanHole = new THREE.Path();
+oceanHole.moveTo(0, 0); oceanHole.lineTo(SX, 0);
+oceanHole.lineTo(SX, SZ); oceanHole.lineTo(0, SZ);
+oceanHole.closePath();
+oceanShape.holes.push(oceanHole);
+const oceanGeo = new THREE.ShapeGeometry(oceanShape);
+oceanGeo.rotateX(Math.PI / 2);       // XY sík → XZ sík; uv = világkoordináta → 1 csempe/blokk
+const ocean = new THREE.Mesh(oceanGeo, new THREE.MeshBasicMaterial({
+  map: oceanTex, transparent: true, opacity: 0.62, side: THREE.DoubleSide,
+}));
+ocean.position.y = WSURF;
 scene.add(ocean);
 
 // felhők (pixeles, lassan úszó)
@@ -639,13 +706,41 @@ function buildChunk(cx, cz) {
           continue;
         }
 
+        if (blk.water) {
+          // víz: a felszín a blokk teteje alatt 0.1-gyel (klasszikus look),
+          // az oldalak is csak eddig érnek — nincs dupla réteg / z-fight
+          const uv = tileUV(T_WATER);
+          const above = getB(x, y + 1, z);
+          const topY = (above === WATER) ? 1 : 0.9;
+          if (above !== WATER && !BLOCKS[above].opaque) {
+            const l = 1.0 * (sunlit(x, y + 1, z) ? 1 : 0.55);
+            pushQuad(wat, [x, y+topY, z+1], [x+1, y+topY, z+1], [x+1, y+topY, z], [x, y+topY, z], uv, l);
+          }
+          const below = getB(x, y - 1, z);
+          if (below !== WATER && !BLOCKS[below].opaque) {
+            const l = 0.5 * (sunlit(x, y - 1, z) ? 1 : 0.55);
+            pushQuad(wat, [x, y, z], [x+1, y, z], [x+1, y, z+1], [x, y, z+1], uv, l);
+          }
+          const sides = [[1,0,0.7],[-1,0,0.7],[0,1,0.85],[0,-1,0.85]];
+          for (const s of sides) {
+            const nid2 = getB(x + s[0], y, z + s[1]);
+            if (nid2 === WATER || BLOCKS[nid2].opaque) continue;
+            const l = s[2] * (sunlit(x + s[0], y, z + s[1]) ? 1 : 0.55);
+            let p0, p1;
+            if (s[0] === 1)       { p0 = [x+1, y, z+1]; p1 = [x+1, y, z]; }
+            else if (s[0] === -1) { p0 = [x, y, z];     p1 = [x, y, z+1]; }
+            else if (s[1] === 1)  { p0 = [x, y, z+1];   p1 = [x+1, y, z+1]; }
+            else                  { p0 = [x+1, y, z];   p1 = [x, y, z]; }
+            pushQuad(wat, p0, p1, [p1[0], y+topY, p1[2]], [p0[0], y+topY, p0[2]], uv, l);
+          }
+          continue;
+        }
+
         for (const f of FACE_DEFS) {
           const nx2 = x + f.d[0], ny2 = y + f.d[1], nz2 = z + f.d[2];
           const nid = getB(nx2, ny2, nz2);
           const nB = BLOCKS[nid];
-          if (blk.water) {
-            if (nid === WATER || nB.opaque) continue;
-          } else if (id === GLASS) {
+          if (id === GLASS) {
             if (nid === GLASS || nB.opaque) continue;
           } else {
             if (nB.opaque) continue;
@@ -697,16 +792,74 @@ async function buildAllChunks(onProgress) {
   }
 }
 
-function rebuildAround(x, z) {
+function chunkKeysFor(x, z) {
   const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
-  const set = new Set([cx + ',' + cz]);
+  const keys = [cx + ',' + cz];
   const lx = x % CHUNK, lz = z % CHUNK;
-  if (lx === 0 && cx > 0) set.add((cx - 1) + ',' + cz);
-  if (lx === CHUNK - 1 && cx < SX / CHUNK - 1) set.add((cx + 1) + ',' + cz);
-  if (lz === 0 && cz > 0) set.add(cx + ',' + (cz - 1));
-  if (lz === CHUNK - 1 && cz < SZ / CHUNK - 1) set.add(cx + ',' + (cz + 1));
-  for (const k of set) {
+  if (lx === 0 && cx > 0) keys.push((cx - 1) + ',' + cz);
+  if (lx === CHUNK - 1 && cx < SX / CHUNK - 1) keys.push((cx + 1) + ',' + cz);
+  if (lz === 0 && cz > 0) keys.push(cx + ',' + (cz - 1));
+  if (lz === CHUNK - 1 && cz < SZ / CHUNK - 1) keys.push(cx + ',' + (cz + 1));
+  return keys;
+}
+function rebuildAround(x, z) {
+  for (const k of chunkKeysFor(x, z)) {
     const [a, b] = k.split(',').map(Number);
+    buildChunk(a, b);
+  }
+}
+
+// ═══ VÍZ-SZIMULÁCIÓ (klasszikus: lefelé folyik, majd szétterül; szivacs blokkolja) ═══
+const waterQ = new Set();
+let waterT = 0;
+const WK = (x, y, z) => x + ',' + y + ',' + z;
+
+function enqueueWaterAround(x, y, z) {
+  const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  for (const d of dirs) {
+    const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+    if (nx < 0 || nx >= SX || ny < 1 || ny >= SY || nz < 0 || nz >= SZ) continue;
+    if (world[idx(nx, ny, nz)] === WATER) waterQ.add(WK(nx, ny, nz));
+  }
+}
+function spongeNear(x, y, z) {
+  for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+    const nx = x + dx, ny = y + dy, nz = z + dz;
+    if (nx < 0 || nx >= SX || ny < 0 || ny >= SY || nz < 0 || nz >= SZ) continue;
+    if (world[idx(nx, ny, nz)] === SPONGE) return true;
+  }
+  return false;
+}
+function waterTick() {
+  if (waterQ.size === 0) return;
+  const items = [];
+  for (const k of waterQ) { items.push(k); if (items.length >= 400) break; }
+  const chunks = new Set();
+  const flow = (x, y, z) => {
+    if (x < 0 || x >= SX || y < 1 || y >= SY || z < 0 || z >= SZ) return false;
+    if (world[idx(x, y, z)] !== AIR) return false;
+    if (spongeNear(x, y, z)) return false;
+    world[idx(x, y, z)] = WATER;
+    recomputeColH(x, z);
+    for (const ck of chunkKeysFor(x, z)) chunks.add(ck);
+    waterQ.add(WK(x, y, z));
+    return true;
+  };
+  for (const k of items) {
+    waterQ.delete(k);
+    const p = k.split(',');
+    const x = +p[0], y = +p[1], z = +p[2];
+    if (world[idx(x, y, z)] !== WATER) continue;
+    // előbb lefelé; ha alatta nem levegő, oldalra terül
+    if (!flow(x, y - 1, z)) {
+      if (getB(x, y - 1, z) !== AIR) {
+        flow(x + 1, y, z); flow(x - 1, y, z);
+        flow(x, y, z + 1); flow(x, y, z - 1);
+      }
+    }
+  }
+  for (const key of chunks) {
+    const [a, b] = key.split(',').map(Number);
     buildChunk(a, b);
   }
 }
@@ -715,6 +868,34 @@ function setBlock(x, y, z, id) {
   if (x < 0 || x >= SX || y < 1 || y >= SY || z < 0 || z >= SZ) return;
   world[idx(x, y, z)] = id;
   recomputeColH(x, z);
+  if (id === AIR) {
+    // térképszélen a "külső óceán" azonnal beömlik; egyébként a szomszéd víz terjed be
+    if (y <= SEA && (x === 0 || x === SX - 1 || z === 0 || z === SZ - 1)) {
+      world[idx(x, y, z)] = WATER;
+      recomputeColH(x, z);
+      waterQ.add(WK(x, y, z));
+    } else {
+      enqueueWaterAround(x, y, z);
+    }
+  } else if (id === WATER) {
+    waterQ.add(WK(x, y, z));
+  } else if (id === SPONGE) {
+    // a szivacs lerakáskor felszívja a vizet 5×5×5-ben
+    const chunks = new Set();
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      const nx = x + dx, ny = y + dy, nz = z + dz;
+      if (nx < 0 || nx >= SX || ny < 1 || ny >= SY || nz < 0 || nz >= SZ) continue;
+      if (world[idx(nx, ny, nz)] === WATER) {
+        world[idx(nx, ny, nz)] = AIR;
+        recomputeColH(nx, nz);
+        for (const ck of chunkKeysFor(nx, nz)) chunks.add(ck);
+      }
+    }
+    for (const key of chunks) {
+      const [a, b] = key.split(',').map(Number);
+      buildChunk(a, b);
+    }
+  }
   rebuildAround(x, z);
 }
 
@@ -747,6 +928,7 @@ function boxCollides(px, py, pz) {
 }
 function movePlayer(dt) {
   const eps = 0.001;
+  player.hitWall = false;
   // X
   let nx = player.x + player.vx * dt;
   if (!boxCollides(nx, player.y, player.z)) player.x = nx;
@@ -754,6 +936,7 @@ function movePlayer(dt) {
     if (player.vx > 0) player.x = Math.floor(nx + player.W) - player.W - eps;
     else player.x = Math.floor(nx - player.W) + 1 + player.W + eps;
     player.vx = 0;
+    player.hitWall = true;
   }
   // Z
   let nz = player.z + player.vz * dt;
@@ -762,6 +945,7 @@ function movePlayer(dt) {
     if (player.vz > 0) player.z = Math.floor(nz + player.W) - player.W - eps;
     else player.z = Math.floor(nz - player.W) + 1 + player.W + eps;
     player.vz = 0;
+    player.hitWall = true;
   }
   // Y
   let ny = player.y + player.vy * dt;
@@ -930,14 +1114,14 @@ function saveWorld(silent) {
     i += run;
   }
   const save = {
-    v: 1, seed: SEED,
+    v: 1, seed: SEED, ts: Date.now(),
     px: player.x, py: player.y, pz: player.z,
     yaw: player.yaw, pitch: player.pitch,
     hotbar, sel: hotbarSel,
     data: bytesToB64(new Uint8Array(rle)),
   };
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+    localStorage.setItem(slotKey(currentSlot), JSON.stringify(save));
     if (!silent) toast('World saved');
   } catch (e) {
     toast('Save failed (storage full?)');
@@ -1125,7 +1309,8 @@ const progressLbl = document.getElementById('progress-label');
 async function progress(p, label) {
   progressBar.style.width = Math.min(100, Math.round(p * 100)) + '%';
   progressLbl.textContent = label + '… ' + Math.min(100, Math.round(p * 100)) + '%';
-  await new Promise(r => requestAnimationFrame(r));
+  // setTimeout (nem rAF): háttér-tabban a rAF megállna és sosem generálna le
+  await new Promise(r => setTimeout(r, 0));
 }
 
 function computeAllColH() {
@@ -1143,19 +1328,97 @@ function findSpawn() {
   return best || { x: SX / 2, y: SEA + 8, z: SZ / 2 };
 }
 
+// ── mentési slotok (5 világ) ──
+const NUM_SLOTS = 5;
+const slotKey = n => 'mcc_save_' + n;
+let currentSlot = 0;
+// régi, egy-mentéses formátum átköltöztetése az 1-es slotba
+if (localStorage.getItem('mcc_save') && !localStorage.getItem(slotKey(0))) {
+  localStorage.setItem(slotKey(0), localStorage.getItem('mcc_save'));
+  localStorage.removeItem('mcc_save');
+}
+function slotInfo(n) {
+  try {
+    const s = JSON.parse(localStorage.getItem(slotKey(n)));
+    return (s && s.data) ? s : null;
+  } catch (e) { return null; }
+}
+function buildSlotList() {
+  const list = document.getElementById('slot-list');
+  list.innerHTML = '';
+  for (let n = 0; n < NUM_SLOTS; n++) {
+    const info = slotInfo(n);
+    const row = document.createElement('div');
+    row.className = 'slot-row';
+    const btn = document.createElement('button');
+    if (info) {
+      const d = info.ts ? new Date(info.ts) : null;
+      btn.textContent = 'WORLD ' + (n + 1) + ' — ' +
+        (d ? (d.toLocaleDateString() + ' ' + d.toLocaleTimeString().slice(0, 5)) : 'SAVED');
+      btn.addEventListener('click', () => { currentSlot = n; startGame(true); });
+      const del = document.createElement('button');
+      del.className = 'slot-del';
+      del.textContent = '✕';
+      del.title = 'Delete world';
+      del.addEventListener('click', () => {
+        if (confirm('Delete world ' + (n + 1) + '?')) {
+          localStorage.removeItem(slotKey(n));
+          buildSlotList();
+        }
+      });
+      row.appendChild(btn);
+      row.appendChild(del);
+    } else {
+      btn.textContent = 'WORLD ' + (n + 1) + ' — GENERATE NEW';
+      btn.addEventListener('click', () => { currentSlot = n; startGame(false); });
+      row.appendChild(btn);
+    }
+    list.appendChild(row);
+  }
+}
+buildSlotList();
+
+// ── fullscreen beállítás ──
+let fsEnabled = localStorage.getItem('mcc_fs') !== '0';
+function applyFsUI() {
+  document.getElementById('box-fs').textContent = fsEnabled ? '✓' : '✕';
+}
+document.getElementById('set-fs').addEventListener('click', () => {
+  fsEnabled = !fsEnabled;
+  localStorage.setItem('mcc_fs', fsEnabled ? '1' : '0');
+  applyFsUI();
+});
+applyFsUI();
+
+// betöltési hibák kiírása a menübe (könnyebb hibakeresés)
+window.addEventListener('error', e => {
+  const el = document.getElementById('progress-label');
+  if (el) { el.style.display = 'block'; el.textContent = 'ERROR: ' + e.message; }
+});
+
 let starting = false;
 async function startGame(loadSave) {
   if (starting) return;
   starting = true;
-  document.getElementById('btn-new').disabled = true;
-  document.getElementById('btn-load').disabled = true;
+  document.querySelectorAll('#slot-list button').forEach(b => b.disabled = true);
   progressWrap.style.display = 'block';
   progressLbl.style.display = 'block';
 
+  if (fsEnabled) {
+    const el = document.documentElement;
+    try {
+      const p = el.requestFullscreen && el.requestFullscreen();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+    try {
+      if (screen.orientation && screen.orientation.lock)
+        screen.orientation.lock('landscape').catch(() => {});
+    } catch (e) {}
+  }
+
   if (loadSave) {
-    let save = null;
-    try { save = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) {}
-    if (!save || !save.data) {   // sérült mentés → új világ
+    const save = slotInfo(currentSlot);
+    if (!save) {   // sérült mentés → új világ
       loadSave = false;
     } else {
       loadWorldData(save);
@@ -1183,9 +1446,6 @@ async function startGame(loadSave) {
   // autosave percenként
   setInterval(() => { if (started && !paused) saveWorld(true); }, 60000);
 }
-document.getElementById('btn-new').addEventListener('click', () => startGame(false));
-document.getElementById('btn-load').addEventListener('click', () => startGame(true));
-if (localStorage.getItem(SAVE_KEY)) document.getElementById('btn-load').disabled = false;
 
 // ═══ GAME LOOP ═══
 const SPEED = 4.3, JUMP_V = 8.6, GRAV = 28;
@@ -1213,10 +1473,12 @@ function loop() {
     if (keys['KeyD']) { mx += rightX; mz += rightZ; }
   }
   const len = Math.hypot(mx, mz) || 1;
+  const moving = Math.hypot(mx, mz) > 0.01;
   const wet = inWater();
-  const spd = SPEED * (wet ? 0.6 : 1);
-  player.vx = (mx / len) * spd * (Math.hypot(mx, mz) > 0.01 ? 1 : 0);
-  player.vz = (mz / len) * spd * (Math.hypot(mx, mz) > 0.01 ? 1 : 0);
+  const sprinting = !isMobile && keys['ShiftLeft'] && !selectOpen && moving;
+  const spd = SPEED * (wet ? 0.6 : 1) * (sprinting ? 1.6 : 1);
+  player.vx = (mx / len) * spd * (moving ? 1 : 0);
+  player.vz = (mz / len) * spd * (moving ? 1 : 0);
 
   const jumpKey = isMobile ? touchJump : keys['Space'];
   if (wet) {
@@ -1229,11 +1491,28 @@ function loop() {
   }
   movePlayer(dt);
 
+  // kimászás-segéd: vízben part felé úszva automatikusan felnyom a peremre
+  if (wet && player.hitWall && moving) player.vy = Math.max(player.vy, 6.8);
+
   // ── kamera ──
   camera.position.set(player.x, player.y + player.EYE, player.z);
   camera.rotation.order = 'YXZ';
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
+
+  // víz alatti nézet: sűrű kék köd
+  const eyeWet = getB(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) === WATER;
+  if (eyeWet) {
+    scene.fog.color.setHex(0x1a4bb8); scene.fog.near = 2; scene.fog.far = 26;
+    renderer.setClearColor(0x1a4bb8);
+  } else {
+    scene.fog.color.setHex(SKY); scene.fog.near = 60; scene.fog.far = 190;
+    renderer.setClearColor(SKY);
+  }
+
+  // víz-terjedés ütemezése
+  waterT -= dt;
+  if (waterT <= 0) { waterTick(); waterT = 0.18; }
 
   // ── blokk-kijelölés + tartott ásás/rakás ──
   const hit = (!selectOpen && (locked || isMobile)) ? raycast() : null;

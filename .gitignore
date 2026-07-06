@@ -1,0 +1,15 @@
+# IDE
+.idea
+.vscode
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*~
+*.swp
+
+# Local
+.env
+*.log
