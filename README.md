@@ -1,6 +1,6 @@
 # MC Classic
 
-Minecraft Classic clone written in Three.js. Finite procedural world
+A game inspired by Minecraft Classic, written in Three.js. Finite procedural world
 (128×128×64) surrounded by ocean, chunk-based voxel meshing, procedural
 pixel-art texture atlas, flowing water with sponges, caves with surface
 entrances, trees, ores (coal / iron / gold / diamond), 16 wool colors,
