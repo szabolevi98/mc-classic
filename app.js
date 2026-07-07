@@ -996,9 +996,61 @@ function raycast(maxDist = 6) {
   return null;
 }
 
+// ═══ HANGOK (procedurális, Web Audio — MC-s "reccs" és "kopp") ═══
+let AC = null;
+function audioCtx() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+// anyagfüggő tónus: kő mély reccs, föld/homok puha, fa koppanós, üveg csörren, növény suhan
+function soundProfile(id) {
+  const b = BLOCKS[id];
+  if (b.plant || id === LEAVES) return { f: 2400, dur: 0.07, g: 0.35 };
+  if (id === DIRT || id === GRASS || id === SAND || id === GRAVEL || id === SPONGE)
+    return { f: 950, dur: 0.10, g: 0.55 };
+  if (id === PLANKS || id === LOG || id === SHELF) return { f: 1350, dur: 0.09, g: 0.55 };
+  if (id === GLASS) return { f: 3200, dur: 0.07, g: 0.45 };
+  if (id >= WOOL0 && id < WOOL0 + 16) return { f: 1100, dur: 0.09, g: 0.45 };
+  if (id === WATER) return { f: 650, dur: 0.12, g: 0.35 };
+  return { f: 720, dur: 0.09, g: 0.6 };   // kő / érc / fém
+}
+function playThud(id, place) {
+  let ac;
+  try { ac = audioCtx(); } catch (e) { return; }
+  const prof = soundProfile(id);
+  const t = ac.currentTime;
+  // zaj-lökés lecsengő aluláteresztővel (a klasszikus "reccs")
+  const buf = ac.createBuffer(1, Math.ceil(ac.sampleRate * prof.dur), ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++)
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 1.8);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const filt = ac.createBiquadFilter(); filt.type = 'lowpass';
+  const base = prof.f * (place ? 1.3 : 1) * (0.9 + Math.random() * 0.2);
+  filt.frequency.setValueAtTime(base, t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(150, base * 0.35), t + prof.dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(prof.g, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + prof.dur);
+  src.connect(filt); filt.connect(g); g.connect(ac.destination);
+  src.start(t);
+  // lerakásnál rövid "kopp" is
+  if (place) {
+    const o = ac.createOscillator(); o.type = 'triangle';
+    o.frequency.value = base * 0.5;
+    const og = ac.createGain();
+    og.gain.setValueAtTime(0.22, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+    o.connect(og); og.connect(ac.destination);
+    o.start(t); o.stop(t + 0.06);
+  }
+}
+
 function doDig() {
   const hit = raycast();
   if (!hit || hit.id === BEDROCK) return;
+  playThud(hit.id, false);
   setBlock(hit.x, hit.y, hit.z, AIR);
 }
 function doPlace() {
@@ -1016,6 +1068,7 @@ function doPlace() {
         py + 1 > player.y && py < player.y + player.H &&
         pz + 1 > player.z - w && pz < player.z + w) return;
   }
+  playThud(id, true);
   setBlock(px, py, pz, id);
 }
 function doPick() {
@@ -1047,6 +1100,10 @@ function refreshHotbar() {
     const cv = document.createElement('canvas');
     drawIcon(cv, hotbar[i]);
     slot.appendChild(cv);
+    // koppintásra / kattintásra slot-váltás (mobilon ez az egyetlen mód)
+    const pick = e => { e.preventDefault(); hotbarSel = i; refreshHotbar(); };
+    slot.addEventListener('touchstart', pick, { passive: false });
+    slot.addEventListener('mousedown', e => { if (!locked) pick(e); });
     bar.appendChild(slot);
   }
 }

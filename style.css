@@ -24,7 +24,7 @@ canvas { display: block; image-rendering: pixelated; }
 
 /* ── Hotbar ── */
 #hotbar {
-  position: fixed; bottom: 8px; left: 50%; z-index: 20;
+  position: fixed; bottom: 8px; left: 50%; z-index: 46;   /* a look-zóna (40) FÖLÉ */
   transform: translateX(-50%);
   display: flex; gap: 0;
   background: rgba(0,0,0,0.35);
@@ -36,6 +36,9 @@ canvas { display: block; image-rendering: pixelated; }
   width: 46px; height: 46px;
   border: 2px solid rgba(0,0,0,0.45);
   display: flex; align-items: center; justify-content: center;
+  pointer-events: auto;   /* koppintható slot-váltáshoz */
+  cursor: pointer;
+  touch-action: none;
 }
 .hb-slot.sel { border: 2px solid #fff; background: rgba(255,255,255,0.15); }
 .hb-slot canvas { width: 36px; height: 36px; image-rendering: pixelated; }
@@ -57,7 +60,7 @@ canvas { display: block; image-rendering: pixelated; }
   margin-bottom: 16px; letter-spacing: 1px;
 }
 #select-grid {
-  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;
 }
 .sel-item {
   width: 52px; height: 52px;
