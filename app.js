@@ -65,7 +65,7 @@ const AIR = 0, STONE = 1, GRASS = 2, DIRT = 3, COBBLE = 4, PLANKS = 5, BEDROCK =
       WOOL0 = 23, /* 23..38: 16 gyapjúszín */
       FLOWER_Y = 39, FLOWER_R = 40, FLOWER_B = 41, FLOWER_P = 42, FLOWER_W = 43,
       MUSH_R = 44, MUSH_B = 45, SAPLING = 46,
-      DIAMOND_ORE = 47, DIAMOND_BLK = 48;
+      DIAMOND_ORE = 47, DIAMOND_BLK = 48, LAVA = 49;
 
 // ═══ TEXTÚRA-ATLASZ (procedurális, 16px csempék, 16×4 rács) ═══
 const TILE = 16, ACOLS = 16, AROWS = 4;
@@ -168,6 +168,19 @@ const T_WATER = addTile((g, r) => {
   for (let i = 0; i < 5; i++) {
     const y = (r() * 16) | 0, x0 = (r() * 10) | 0;
     for (let x = x0; x < Math.min(16, x0 + 4 + r() * 4); x++) P(g, x, y, 90, 130, 235);
+  }
+});
+const T_LAVA = addTile((g, r) => {
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const n = noise2(x * 0.35 + 55, y * 0.35 + 99);
+    const d = (r() - 0.5) * 26;
+    if (n > 0.55) P(g, x, y, 250, 150 + n * 60 + d, 30 + d * 0.4);
+    else P(g, x, y, 196 + d, 66 + d * 0.5, 14);
+  }
+  // izzó erek
+  for (let i = 0; i < 4; i++) {
+    const y0 = (r() * 16) | 0, x0 = (r() * 8) | 0;
+    for (let x = x0; x < Math.min(16, x0 + 5 + r() * 5); x++) P(g, x, y0, 255, 222, 92);
   }
 });
 const T_GLASS = addTile((g, r) => {
@@ -351,12 +364,14 @@ BLOCKS[MUSH_B]   = plantB('Brown Mushroom', T_MUSH_B);
 BLOCKS[SAPLING]  = plantB('Sapling', T_SAPLING);
 BLOCKS[DIAMOND_ORE] = B('Diamond Ore', [T_DIAMOND, T_DIAMOND, T_DIAMOND]);
 BLOCKS[DIAMOND_BLK] = B('Diamond Block', [T_DIAMOND_BLK, T_DIAMOND_BLK, T_DIAMOND_BLK]);
+BLOCKS[LAVA]        = B('Lava', [T_LAVA, T_LAVA, T_LAVA],
+                        { solid: false, opaque: false, lava: true, sel: true });
 
 // a Select block menü sorrendje
 const SELECT_ORDER = [
   STONE, COBBLE, DIRT, GRASS, PLANKS, LOG, LEAVES, SAPLING,
   FLOWER_Y, FLOWER_R, FLOWER_B, FLOWER_P, FLOWER_W, MUSH_R, MUSH_B,
-  SAND, GRAVEL, WATER, SPONGE, GLASS,
+  SAND, GRAVEL, WATER, LAVA, SPONGE, GLASS,
   COAL_ORE, IRON_ORE, GOLD_ORE, DIAMOND_ORE,
   IRON_BLK, GOLD_BLK, DIAMOND_BLK, BRICK, MOSSY, OBSIDIAN, SHELF,
   WOOL0, WOOL0+1, WOOL0+2, WOOL0+3, WOOL0+4, WOOL0+5, WOOL0+6, WOOL0+7,
@@ -706,32 +721,47 @@ function buildChunk(cx, cz) {
           continue;
         }
 
-        if (blk.water) {
-          // víz: a felszín a blokk teteje alatt 0.1-gyel (klasszikus look),
-          // az oldalak is csak eddig érnek — nincs dupla réteg / z-fight
-          const uv = tileUV(T_WATER);
+        if (blk.water || blk.lava) {
+          // folyadék: a felszín a blokk teteje alatt 0.1-gyel; az oldalak is
+          // eddig érnek. Azonos folyadék-szomszédnál a magasságkülönbség
+          // 0.1-es csíkját külön kitöltjük → nincs rés a vízesésben!
+          const isW = !!blk.water;
+          const bucket = isW ? wat : op;         // a láva nem átlátszó
+          const uv = tileUV(blk.tiles[0]);
           const above = getB(x, y + 1, z);
-          const topY = (above === WATER) ? 1 : 0.9;
-          if (above !== WATER && !BLOCKS[above].opaque) {
-            const l = 1.0 * (sunlit(x, y + 1, z) ? 1 : 0.55);
-            pushQuad(wat, [x, y+topY, z+1], [x+1, y+topY, z+1], [x+1, y+topY, z], [x, y+topY, z], uv, l);
+          const topY = (above === id) ? 1 : 0.9;
+          // láva: mindig teljes fénnyel izzik, a nap/árnyék nem fogja
+          const shade = (f, lx, ly, lz) => isW ? f * (sunlit(lx, ly, lz) ? 1 : 0.55) : 1.0;
+          if (above !== id && !BLOCKS[above].opaque) {
+            const l = shade(1.0, x, y + 1, z);
+            pushQuad(bucket, [x, y+topY, z+1], [x+1, y+topY, z+1], [x+1, y+topY, z], [x, y+topY, z], uv, l);
           }
           const below = getB(x, y - 1, z);
-          if (below !== WATER && !BLOCKS[below].opaque) {
-            const l = 0.5 * (sunlit(x, y - 1, z) ? 1 : 0.55);
-            pushQuad(wat, [x, y, z], [x+1, y, z], [x+1, y, z+1], [x, y, z+1], uv, l);
+          if (below !== id && !BLOCKS[below].opaque) {
+            const l = shade(0.5, x, y - 1, z);
+            pushQuad(bucket, [x, y, z], [x+1, y, z], [x+1, y, z+1], [x, y, z+1], uv, l);
           }
           const sides = [[1,0,0.7],[-1,0,0.7],[0,1,0.85],[0,-1,0.85]];
           for (const s of sides) {
-            const nid2 = getB(x + s[0], y, z + s[1]);
-            if (nid2 === WATER || BLOCKS[nid2].opaque) continue;
-            const l = s[2] * (sunlit(x + s[0], y, z + s[1]) ? 1 : 0.55);
+            const nx3 = x + s[0], nz3 = z + s[1];
+            const nid2 = getB(nx3, y, nz3);
+            let yLo = 0, yHi = topY;
+            if (nid2 === id) {
+              // azonos folyadék: ha ez teljes (1.0), a szomszéd meg 0.9-es
+              // felszínű, a köztes 0.1-es csík kitöltése
+              const nbTop = (getB(nx3, y + 1, nz3) === id) ? 1 : 0.9;
+              if (topY <= nbTop) continue;
+              yLo = nbTop; yHi = topY;
+            } else if (BLOCKS[nid2].opaque) continue;
+            const l = shade(s[2], nx3, y, nz3);
             let p0, p1;
-            if (s[0] === 1)       { p0 = [x+1, y, z+1]; p1 = [x+1, y, z]; }
-            else if (s[0] === -1) { p0 = [x, y, z];     p1 = [x, y, z+1]; }
-            else if (s[1] === 1)  { p0 = [x, y, z+1];   p1 = [x+1, y, z+1]; }
-            else                  { p0 = [x+1, y, z];   p1 = [x, y, z]; }
-            pushQuad(wat, p0, p1, [p1[0], y+topY, p1[2]], [p0[0], y+topY, p0[2]], uv, l);
+            if (s[0] === 1)       { p0 = [x+1, z+1]; p1 = [x+1, z]; }
+            else if (s[0] === -1) { p0 = [x, z];     p1 = [x, z+1]; }
+            else if (s[1] === 1)  { p0 = [x, z+1];   p1 = [x+1, z+1]; }
+            else                  { p0 = [x+1, z];   p1 = [x, z]; }
+            pushQuad(bucket,
+              [p0[0], y+yLo, p0[1]], [p1[0], y+yLo, p1[1]],
+              [p1[0], y+yHi, p1[1]], [p0[0], y+yHi, p0[1]], uv, l);
           }
           continue;
         }
@@ -809,17 +839,22 @@ function rebuildAround(x, z) {
   }
 }
 
-// ═══ VÍZ-SZIMULÁCIÓ (klasszikus: lefelé folyik, majd szétterül; szivacs blokkolja) ═══
+// ═══ FOLYADÉK-SZIMULÁCIÓ (víz + láva: lefelé folyik, majd szétterül) ═══
+// Víz: gyors, szivacs blokkolja/felszívja. Láva: lassú, vízzel találkozva
+// COBBLESTONE keletkezik (mint az igazi Minecraftban).
 const waterQ = new Set();
-let waterT = 0;
+const lavaQ  = new Set();
+let waterT = 0, lavaT = 0;
 const WK = (x, y, z) => x + ',' + y + ',' + z;
 
-function enqueueWaterAround(x, y, z) {
+function enqueueLiquidAround(x, y, z) {
   const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
   for (const d of dirs) {
     const nx = x + d[0], ny = y + d[1], nz = z + d[2];
     if (nx < 0 || nx >= SX || ny < 1 || ny >= SY || nz < 0 || nz >= SZ) continue;
-    if (world[idx(nx, ny, nz)] === WATER) waterQ.add(WK(nx, ny, nz));
+    const b = world[idx(nx, ny, nz)];
+    if (b === WATER) waterQ.add(WK(nx, ny, nz));
+    else if (b === LAVA) lavaQ.add(WK(nx, ny, nz));
   }
 }
 function spongeNear(x, y, z) {
@@ -830,26 +865,48 @@ function spongeNear(x, y, z) {
   }
   return false;
 }
-function waterTick() {
-  if (waterQ.size === 0) return;
+const LIQ_DIRS = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+function liquidTick(LIQ, queue) {
+  if (queue.size === 0) return;
+  const OTHER = LIQ === WATER ? LAVA : WATER;
   const items = [];
-  for (const k of waterQ) { items.push(k); if (items.length >= 400) break; }
+  for (const k of queue) { items.push(k); if (items.length >= 400) break; }
   const chunks = new Set();
+  const mark = (x, z) => { for (const ck of chunkKeysFor(x, z)) chunks.add(ck); };
   const flow = (x, y, z) => {
     if (x < 0 || x >= SX || y < 1 || y >= SY || z < 0 || z >= SZ) return false;
     if (world[idx(x, y, z)] !== AIR) return false;
-    if (spongeNear(x, y, z)) return false;
-    world[idx(x, y, z)] = WATER;
-    recomputeColH(x, z);
-    for (const ck of chunkKeysFor(x, z)) chunks.add(ck);
-    waterQ.add(WK(x, y, z));
+    if (LIQ === WATER && spongeNear(x, y, z)) return false;
+    // találkozik-e a MÁSIK folyadékkal?
+    let touchOther = false;
+    for (const d of LIQ_DIRS) {
+      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+      if (nx < 0 || nx >= SX || ny < 0 || ny >= SY || nz < 0 || nz >= SZ) continue;
+      if (world[idx(nx, ny, nz)] === OTHER) {
+        if (LIQ === LAVA) { touchOther = true; }
+        else {
+          // az érkező víz a szomszéd LÁVÁT kővé dermeszti
+          world[idx(nx, ny, nz)] = COBBLE;
+          recomputeColH(nx, nz); mark(nx, nz);
+        }
+      }
+    }
+    if (LIQ === LAVA && touchOther) {
+      // a vízhez érő láva azonnal megszilárdul
+      world[idx(x, y, z)] = COBBLE;
+      recomputeColH(x, z); mark(x, z);
+      return true;
+    }
+    world[idx(x, y, z)] = LIQ;
+    recomputeColH(x, z); mark(x, z);
+    queue.add(WK(x, y, z));
     return true;
   };
   for (const k of items) {
-    waterQ.delete(k);
+    queue.delete(k);
     const p = k.split(',');
     const x = +p[0], y = +p[1], z = +p[2];
-    if (world[idx(x, y, z)] !== WATER) continue;
+    if (world[idx(x, y, z)] !== LIQ) continue;
     // előbb lefelé; ha alatta nem levegő, oldalra terül
     if (!flow(x, y - 1, z)) {
       if (getB(x, y - 1, z) !== AIR) {
@@ -869,23 +926,48 @@ function setBlock(x, y, z, id) {
   world[idx(x, y, z)] = id;
   recomputeColH(x, z);
   if (id === AIR) {
-    // térképszélen a "külső óceán" azonnal beömlik; egyébként a szomszéd víz terjed be
+    // térképszélen a "külső óceán" azonnal beömlik; egyébként a szomszéd folyadék terjed be
     if (y <= SEA && (x === 0 || x === SX - 1 || z === 0 || z === SZ - 1)) {
       world[idx(x, y, z)] = WATER;
       recomputeColH(x, z);
       waterQ.add(WK(x, y, z));
     } else {
-      enqueueWaterAround(x, y, z);
+      enqueueLiquidAround(x, y, z);
     }
   } else if (id === WATER) {
+    // a szomszédos láva kővé dermed
+    for (const d of LIQ_DIRS) {
+      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+      if (nx < 0 || nx >= SX || ny < 1 || ny >= SY || nz < 0 || nz >= SZ) continue;
+      if (world[idx(nx, ny, nz)] === LAVA) {
+        world[idx(nx, ny, nz)] = COBBLE;
+        recomputeColH(nx, nz);
+        rebuildAround(nx, nz);
+      }
+    }
     waterQ.add(WK(x, y, z));
+  } else if (id === LAVA) {
+    // vizes szomszéd mellé rakott láva azonnal kővé válik
+    let touchWater = false;
+    for (const d of LIQ_DIRS) {
+      const nx = x + d[0], ny = y + d[1], nz = z + d[2];
+      if (nx < 0 || nx >= SX || ny < 0 || ny >= SY || nz < 0 || nz >= SZ) continue;
+      if (world[idx(nx, ny, nz)] === WATER) { touchWater = true; break; }
+    }
+    if (touchWater) {
+      world[idx(x, y, z)] = COBBLE;
+      recomputeColH(x, z);
+    } else {
+      lavaQ.add(WK(x, y, z));
+    }
   } else if (id === SPONGE) {
-    // a szivacs lerakáskor felszívja a vizet 5×5×5-ben
+    // a szivacs lerakáskor felszívja a folyadékot 5×5×5-ben (vizet ÉS lávát)
     const chunks = new Set();
     for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
       const nx = x + dx, ny = y + dy, nz = z + dz;
       if (nx < 0 || nx >= SX || ny < 1 || ny >= SY || nz < 0 || nz >= SZ) continue;
-      if (world[idx(nx, ny, nz)] === WATER) {
+      const b = world[idx(nx, ny, nz)];
+      if (b === WATER || b === LAVA) {
         world[idx(nx, ny, nz)] = AIR;
         recomputeColH(nx, nz);
         for (const ck of chunkKeysFor(nx, nz)) chunks.add(ck);
@@ -964,7 +1046,7 @@ function movePlayer(dt) {
 function inWater() {
   const feet = getB(Math.floor(player.x), Math.floor(player.y + 0.35), Math.floor(player.z));
   const eye = getB(Math.floor(player.x), Math.floor(player.y + player.EYE), Math.floor(player.z));
-  return feet === WATER || eye === WATER;
+  return feet === WATER || eye === WATER || feet === LAVA || eye === LAVA;
 }
 
 // ═══ SUGÁRKÖVETÉS (voxel DDA) ═══
@@ -984,7 +1066,7 @@ function raycast(maxDist = 6) {
   let t = 0;
   for (let i = 0; i < 64; i++) {
     const id = getB(x, y, z);
-    if (id !== AIR && id !== WATER) {
+    if (id !== AIR && id !== WATER && id !== LAVA) {
       return { x, y, z, px, py, pz, id };
     }
     px = x; py = y; pz = z;
@@ -1013,6 +1095,7 @@ function soundProfile(id) {
   if (id === GLASS) return { f: 3200, dur: 0.07, g: 0.45 };
   if (id >= WOOL0 && id < WOOL0 + 16) return { f: 1100, dur: 0.09, g: 0.45 };
   if (id === WATER) return { f: 650, dur: 0.12, g: 0.35 };
+  if (id === LAVA)  return { f: 380, dur: 0.16, g: 0.45 };  // mély bugyogás
   return { f: 720, dur: 0.09, g: 0.6 };   // kő / érc / fém
 }
 function playThud(id, place) {
@@ -1059,7 +1142,7 @@ function doPlace() {
   const { px, py, pz } = hit;
   if (px < 0 || px >= SX || py < 1 || py >= SY || pz < 0 || pz >= SZ) return;
   const cur = getB(px, py, pz);
-  if (cur !== AIR && cur !== WATER && !BLOCKS[cur].plant) return;
+  if (cur !== AIR && cur !== WATER && cur !== LAVA && !BLOCKS[cur].plant) return;
   const id = hotbar[hotbarSel];
   // szilárd blokk ne kerüljön a játékosba
   if (BLOCKS[id].solid) {
@@ -1575,19 +1658,24 @@ function loop() {
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
 
-  // víz alatti nézet: sűrű kék köd
-  const eyeWet = getB(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) === WATER;
-  if (eyeWet) {
+  // folyadék alatti nézet: vízben sűrű kék, lávában izzó narancs köd
+  const eyeId = getB(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z));
+  if (eyeId === WATER) {
     scene.fog.color.setHex(0x1a4bb8); scene.fog.near = 2; scene.fog.far = 26;
     renderer.setClearColor(0x1a4bb8);
+  } else if (eyeId === LAVA) {
+    scene.fog.color.setHex(0xc24a08); scene.fog.near = 0.5; scene.fog.far = 7;
+    renderer.setClearColor(0xc24a08);
   } else {
     scene.fog.color.setHex(SKY); scene.fog.near = 60; scene.fog.far = 190;
     renderer.setClearColor(SKY);
   }
 
-  // víz-terjedés ütemezése
+  // folyadék-terjedés ütemezése (a láva lassabban folyik)
   waterT -= dt;
-  if (waterT <= 0) { waterTick(); waterT = 0.18; }
+  if (waterT <= 0) { liquidTick(WATER, waterQ); waterT = 0.18; }
+  lavaT -= dt;
+  if (lavaT <= 0) { liquidTick(LAVA, lavaQ); lavaT = 0.65; }
 
   // ── blokk-kijelölés + tartott ásás/rakás ──
   const hit = (!selectOpen && (locked || isMobile)) ? raycast() : null;
