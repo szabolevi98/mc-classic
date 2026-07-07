@@ -1601,6 +1601,7 @@ async function startGame(loadSave) {
   if (!isMobile) document.getElementById('click-catcher').requestPointerLock();
   prev = performance.now();
   requestAnimationFrame(loop);
+  setTimeout(() => toast('Press "B" to open the block selector'), 400);
   // autosave percenként
   setInterval(() => { if (started && !paused) saveWorld(true); }, 60000);
 }
