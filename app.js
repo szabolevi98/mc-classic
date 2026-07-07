@@ -1099,6 +1099,7 @@ function soundProfile(id) {
   return { f: 720, dur: 0.09, g: 0.6 };   // kő / érc / fém
 }
 function playThud(id, place) {
+  if (!soundEnabled) return;
   let ac;
   try { ac = audioCtx(); } catch (e) { return; }
   const prof = soundProfile(id);
@@ -1547,6 +1548,18 @@ document.getElementById('set-fs').addEventListener('click', () => {
   applyFsUI();
 });
 applyFsUI();
+
+// ── hang beállítás ──
+let soundEnabled = localStorage.getItem('mcc_sound') !== '0';
+function applySoundUI() {
+  document.getElementById('box-sound').textContent = soundEnabled ? '✓' : '✕';
+}
+document.getElementById('set-sound').addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem('mcc_sound', soundEnabled ? '1' : '0');
+  applySoundUI();
+});
+applySoundUI();
 
 // betöltési hibák kiírása a menübe (könnyebb hibakeresés)
 window.addEventListener('error', e => {

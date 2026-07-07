@@ -103,7 +103,7 @@ canvas { display: block; image-rendering: pixelated; }
 #menu button:hover:not(:disabled), #pause button:hover { background: #7d8cbf; color: #fff; }
 #menu button:disabled { opacity: 0.4; cursor: default; }
 
-#settings { margin-top: 18px; }
+#settings { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
 .setting-row {
   display: flex; align-items: center; gap: 10px;
   color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 2px;
