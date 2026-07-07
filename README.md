@@ -6,6 +6,10 @@ pixel-art texture atlas, flowing water with sponges, caves with surface
 entrances, trees, ores (coal / iron / gold / diamond), 16 wool colors,
 flowers in five colors — and 5 world save slots stored in localStorage.
 
+**Live demo:** https://szabolevi98.github.io/mc-classic
+
+![MC Classic](screenshot.png)
+
 ## Controls
 
 | Input | Action |
