@@ -772,12 +772,12 @@ function buildChunk(cx, cz) {
           const bucket = isW ? wat : op;         // a láva nem átlátszó
           const uv = tileUV(blk.tiles[0]);
           const above = getB(x, y + 1, z);
-          // tömör blokk alatt a folyadék teljesen kitölti a cellát (mint az
-          // igazi MC-ben), különben 0.1-es rés látszana be oldalról
-          const topY = (above === id || BLOCKS[above].opaque) ? 1 : 0.9;
+          const topY = (above === id) ? 1 : 0.9;
           // láva: mindig teljes fénnyel izzik, a nap/árnyék nem fogja
           const shade = (f, lx, ly, lz) => isW ? f * (sunlit(lx, ly, lz) ? 1 : 0.55) : 1.0;
-          if (above !== id && !BLOCKS[above].opaque) {
+          // a felszín tömör blokk alatt is kirajzolódik (0.9-en, nincs z-fight),
+          // mint az igazi MC-ben — különben lyukas rés látszana a blokk alatt
+          if (above !== id) {
             const l = shade(1.0, x, y + 1, z);
             pushQuad(bucket, [x, y+topY, z+1], [x+1, y+topY, z+1], [x+1, y+topY, z], [x, y+topY, z], uv, l);
           }
@@ -794,12 +794,14 @@ function buildChunk(cx, cz) {
             if (nid2 === id) {
               // azonos folyadék: ha ez teljes (1.0), a szomszéd meg 0.9-es
               // felszínű, a köztes 0.1-es csík kitöltése
-              const nAbove = getB(nx3, y + 1, nz3);
-              const nbTop = (nAbove === id || BLOCKS[nAbove].opaque) ? 1 : 0.9;
+              const nbTop = (getB(nx3, y + 1, nz3) === id) ? 1 : 0.9;
               if (topY <= nbTop) continue;
               yLo = nbTop; yHi = topY;
             } else if (BLOCKS[nid2].opaque) continue;
-            const l = shade(s[2], nx3, y, nz3);
+            // a víz oldal/lépcső lapjai a FELSZÍN fényét kapják (a szomszéd
+            // feletti cella alapján), ne sötétedjenek el — így a szintek
+            // egybefüggő víztestként érnek össze, nincs sötét csík
+            const l = shade(1.0, nx3, y + 1, nz3);
             let p0, p1;
             if (s[0] === 1)       { p0 = [x+1, z+1]; p1 = [x+1, z]; }
             else if (s[0] === -1) { p0 = [x, z];     p1 = [x, z+1]; }
@@ -963,7 +965,11 @@ function liquidTick(LIQ, queue) {
     // előbb lefelé (a leeső folyadék újra teljes erejű); ha alatta nem levegő,
     // oldalra terül eggyel gyengébb szinttel — 1-es szint már nem terjed
     if (!flow(x, y - 1, z, LIQ_MAX(LIQ))) {
-      if (getB(x, y - 1, z) !== AIR && lvl > 1) {
+      const below = getB(x, y - 1, z);
+      // ha alatta ugyanez a folyadék: beleolvad a víztestbe, NEM terül szét
+      // a felszín tetején (különben dupla vízréteg úszna a tavon)
+      if (below === LIQ) continue;
+      if (below !== AIR && lvl > 1) {
         flow(x + 1, y, z, lvl - 1); flow(x - 1, y, z, lvl - 1);
         flow(x, y, z + 1, lvl - 1); flow(x, y, z - 1, lvl - 1);
       }
