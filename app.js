@@ -423,6 +423,7 @@ function terrainH(x, z) {
 
 async function generateWorld(onProgress) {
   world.fill(0);
+  liqLevel.clear(); waterQ.clear(); lavaQ.clear();
 
   // 1) domborzat
   for (let x = 0; x < SX; x++) for (let z = 0; z < SZ; z++) heights[x * SZ + z] = terrainH(x, z);
@@ -890,6 +891,11 @@ const waterQ = new Set();
 const lavaQ  = new Set();
 let waterT = 0, lavaT = 0;
 const WK = (x, y, z) => x + ',' + y + ',' + z;
+// folyadék-szintek (csak futásidőben, mentésbe nem kerül): forrás = 8 (víz) / 4 (láva),
+// oldalirányú terjedésnél 1-gyel csökken, 1-nél elfogy → nem áraszt el mindent.
+// A generált/betöltött víz nincs a Map-ben → forrásként viselkedik (óceán).
+const liqLevel = new Map();
+const LIQ_MAX = id => id === WATER ? 8 : 4;
 
 function enqueueLiquidAround(x, y, z) {
   const dirs = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
@@ -917,7 +923,7 @@ function liquidTick(LIQ, queue) {
   for (const k of queue) { items.push(k); if (items.length >= 400) break; }
   const chunks = new Set();
   const mark = (x, z) => { for (const ck of chunkKeysFor(x, z)) chunks.add(ck); };
-  const flow = (x, y, z) => {
+  const flow = (x, y, z, lvl) => {
     if (x < 0 || x >= SX || y < 1 || y >= SY || z < 0 || z >= SZ) return false;
     if (world[idx(x, y, z)] !== AIR) return false;
     if (LIQ === WATER && spongeNear(x, y, z)) return false;
@@ -942,6 +948,7 @@ function liquidTick(LIQ, queue) {
       return true;
     }
     world[idx(x, y, z)] = LIQ;
+    liqLevel.set(WK(x, y, z), lvl);
     recomputeColH(x, z); mark(x, z);
     queue.add(WK(x, y, z));
     return true;
@@ -950,12 +957,14 @@ function liquidTick(LIQ, queue) {
     queue.delete(k);
     const p = k.split(',');
     const x = +p[0], y = +p[1], z = +p[2];
-    if (world[idx(x, y, z)] !== LIQ) continue;
-    // előbb lefelé; ha alatta nem levegő, oldalra terül
-    if (!flow(x, y - 1, z)) {
-      if (getB(x, y - 1, z) !== AIR) {
-        flow(x + 1, y, z); flow(x - 1, y, z);
-        flow(x, y, z + 1); flow(x, y, z - 1);
+    if (world[idx(x, y, z)] !== LIQ) { liqLevel.delete(k); continue; }
+    const lvl = liqLevel.has(k) ? liqLevel.get(k) : LIQ_MAX(LIQ);
+    // előbb lefelé (a leeső folyadék újra teljes erejű); ha alatta nem levegő,
+    // oldalra terül eggyel gyengébb szinttel — 1-es szint már nem terjed
+    if (!flow(x, y - 1, z, LIQ_MAX(LIQ))) {
+      if (getB(x, y - 1, z) !== AIR && lvl > 1) {
+        flow(x + 1, y, z, lvl - 1); flow(x - 1, y, z, lvl - 1);
+        flow(x, y, z + 1, lvl - 1); flow(x, y, z - 1, lvl - 1);
       }
     }
   }
@@ -968,12 +977,16 @@ function liquidTick(LIQ, queue) {
 function setBlock(x, y, z, id) {
   if (x < 0 || x >= SX || y < 1 || y >= SY || z < 0 || z >= SZ) return;
   world[idx(x, y, z)] = id;
+  // lerakott folyadék forrásblokk; minden más felülírja az esetleges régi szintet
+  if (id === WATER || id === LAVA) liqLevel.set(WK(x, y, z), LIQ_MAX(id));
+  else liqLevel.delete(WK(x, y, z));
   recomputeColH(x, z);
   if (id === AIR) {
     // térképszélen a "külső óceán" azonnal beömlik (de csak a külső tengerfenék,
     // SEA-6 fölött — az alatt már bedrock van kint, nem víz); egyébként a szomszéd folyadék terjed be
     if (y <= SEA && y >= SEA - 6 && (x === 0 || x === SX - 1 || z === 0 || z === SZ - 1)) {
       world[idx(x, y, z)] = WATER;
+      liqLevel.set(WK(x, y, z), LIQ_MAX(WATER));   // a külső óceán forrásként ömlik be
       recomputeColH(x, z);
       waterQ.add(WK(x, y, z));
     } else {
@@ -1317,6 +1330,7 @@ function loadWorldData(save) {
   SEED = save.seed >>> 0;
   const bytes = b64ToBytes(save.data);
   world.fill(0);
+  liqLevel.clear(); waterQ.clear(); lavaQ.clear();
   let o = 0, i = 0;
   while (i < bytes.length && o < world.length) {
     const v = bytes[i], run = bytes[i + 1] | (bytes[i + 2] << 8);
