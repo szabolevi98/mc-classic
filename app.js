@@ -657,6 +657,7 @@ const clouds = new THREE.Mesh(
 );
 clouds.rotation.x = -Math.PI / 2;
 clouds.position.set(SX / 2, 96, SZ / 2);
+clouds.renderOrder = 2;   // mindig az óceánsík (átlátszó) UTÁN, hogy ne fakuljon ki felülről
 scene.add(clouds);
 
 // blokk-kijelölő keret
