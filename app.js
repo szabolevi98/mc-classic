@@ -770,7 +770,9 @@ function buildChunk(cx, cz) {
           const bucket = isW ? wat : op;         // a láva nem átlátszó
           const uv = tileUV(blk.tiles[0]);
           const above = getB(x, y + 1, z);
-          const topY = (above === id) ? 1 : 0.9;
+          // tömör blokk alatt a folyadék teljesen kitölti a cellát (mint az
+          // igazi MC-ben), különben 0.1-es rés látszana be oldalról
+          const topY = (above === id || BLOCKS[above].opaque) ? 1 : 0.9;
           // láva: mindig teljes fénnyel izzik, a nap/árnyék nem fogja
           const shade = (f, lx, ly, lz) => isW ? f * (sunlit(lx, ly, lz) ? 1 : 0.55) : 1.0;
           if (above !== id && !BLOCKS[above].opaque) {
@@ -790,7 +792,8 @@ function buildChunk(cx, cz) {
             if (nid2 === id) {
               // azonos folyadék: ha ez teljes (1.0), a szomszéd meg 0.9-es
               // felszínű, a köztes 0.1-es csík kitöltése
-              const nbTop = (getB(nx3, y + 1, nz3) === id) ? 1 : 0.9;
+              const nAbove = getB(nx3, y + 1, nz3);
+              const nbTop = (nAbove === id || BLOCKS[nAbove].opaque) ? 1 : 0.9;
               if (topY <= nbTop) continue;
               yLo = nbTop; yHi = topY;
             } else if (BLOCKS[nid2].opaque) continue;
