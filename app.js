@@ -670,7 +670,8 @@ for (const [px, pz, rotY] of [
   [-EPS, SZ / 2, -Math.PI / 2],      // x = 0 perem
   [SX + EPS, SZ / 2, Math.PI / 2],   // x = SX perem
 ]) {
-  const w = new THREE.Mesh(new THREE.PlaneGeometry(SX, BED_H), bedWallMat);
+  // 1 blokknyival szélesebb, hogy a sarkokban átlapolódjanak (ne legyen rés)
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(SX + 1, BED_H), bedWallMat);
   w.position.set(px, BED_H / 2, pz);
   w.rotation.y = rotY;
   scene.add(w);
