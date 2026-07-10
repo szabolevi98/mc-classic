@@ -656,7 +656,7 @@ const clouds = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.9, alphaTest: 0.3, side: THREE.DoubleSide, depthWrite: false })
 );
 clouds.rotation.x = -Math.PI / 2;
-clouds.position.set(SX / 2, SY + 6, SZ / 2);
+clouds.position.set(SX / 2, 96, SZ / 2);
 scene.add(clouds);
 
 // blokk-kijelölő keret
