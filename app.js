@@ -1,12 +1,12 @@
 'use strict';
 /* ═══════════════════════════════════════════════════════════════
    MC CLASSIC CLONE — Three.js voxel játék
-   Véges világ (128×128×64), a szélén óceán. Chunk-alapú meshing,
+   Véges világ (128×128×128), a szélén óceán. Chunk-alapú meshing,
    procedurális textúra-atlasz, mentés localStorage-ba (RLE).
    ═══════════════════════════════════════════════════════════════ */
 
 // ═══ ALAP KONSTANSOK ═══
-const SX = 128, SZ = 128, SY = 64;   // világméret
+const SX = 128, SZ = 128, SY = 128;  // világméret (magas plafon a nagy épületekhez)
 const SEA = 30;                      // tengerszint (legfelső vízblokk y-ja)
 const CHUNK = 16;                    // chunk oldalhossz (oszlopokban)
 
@@ -416,7 +416,9 @@ function terrainH(x, z) {
   const e = Math.min(x, SX - 1 - x, z, SZ - 1 - z) / 22;
   const ef = smooth(Math.max(0, Math.min(1, e)));
   h = (SEA - 7) + (h - (SEA - 7)) * ef;
-  return Math.max(4, Math.min(SY - 10, Math.floor(h)));
+  // A terep plafonja fix (SEA+24) marad, hogy a magasabb SY csak több
+  // építési levegőt adjon fölé, a táj alakja ne változzon.
+  return Math.max(4, Math.min(SEA + 24, Math.floor(h)));
 }
 
 async function generateWorld(onProgress) {
@@ -1255,7 +1257,7 @@ function saveWorld(silent) {
     i += run;
   }
   const save = {
-    v: 1, seed: SEED, ts: Date.now(),
+    v: 1, seed: SEED, ts: Date.now(), sy: SY,
     px: player.x, py: player.y, pz: player.z,
     yaw: player.yaw, pitch: player.pitch,
     hotbar, sel: hotbarSel,

@@ -1,7 +1,7 @@
 # MC Classic
 
 A game inspired by Minecraft Classic, written in Three.js. Finite procedural world
-(128×128×64) surrounded by ocean, chunk-based voxel meshing, procedural
+(128×128×128) surrounded by ocean, chunk-based voxel meshing, procedural
 pixel-art texture atlas, flowing water with sponges, caves with surface
 entrances, trees, ores (coal / iron / gold / diamond), 16 wool colors,
 flowers in five colors, and 5 world save slots stored in localStorage.
