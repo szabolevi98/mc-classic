@@ -637,6 +637,44 @@ const ocean = new THREE.Mesh(oceanGeo, new THREE.MeshBasicMaterial({
 ocean.position.y = WSURF;
 scene.add(ocean);
 
+// ── pályán kívüli tengerfenék (CSAK vizuális, sosem kerül a world tömbbe) ──
+// Mint az igazi MC Classicban: a perem-terep szintjén (SEA-7, top face = SEA-6)
+// bedrock sík fut a látóhatárig a víz alatt, üresség helyett.
+const bedTileCanvas = document.createElement('canvas');
+bedTileCanvas.width = bedTileCanvas.height = TILE;
+bedTileCanvas.getContext('2d').drawImage(atlasCanvas,
+  (T_BEDROCK % ACOLS) * TILE, Math.floor(T_BEDROCK / ACOLS) * TILE, TILE, TILE, 0, 0, TILE, TILE);
+const bedFloorTex = new THREE.CanvasTexture(bedTileCanvas);
+bedFloorTex.magFilter = bedFloorTex.minFilter = THREE.NearestFilter;
+bedFloorTex.wrapS = bedFloorTex.wrapT = THREE.RepeatWrapping;
+// gyűrű alakú sík (lyuk a pálya felett), uv = világkoord → 1 csempe/blokk
+const bedFloorGeo = new THREE.ShapeGeometry(oceanShape);
+bedFloorGeo.rotateX(Math.PI / 2);
+const bedFloor = new THREE.Mesh(bedFloorGeo,
+  new THREE.MeshBasicMaterial({ map: bedFloorTex, side: THREE.DoubleSide }));
+bedFloor.position.y = SEA - 6;   // a perem-oszlopok tetejével (23-as blokk teteje) egy szintben
+scene.add(bedFloor);
+// függőleges bedrock falak a pálya peremén a fenék-sík ALATT (0 → SEA-6),
+// hogy a szélen leásva se lehessen kilátni az ürességbe
+const BED_H = SEA - 6;
+const bedWallTex = new THREE.CanvasTexture(bedTileCanvas);
+bedWallTex.magFilter = bedWallTex.minFilter = THREE.NearestFilter;
+bedWallTex.wrapS = bedWallTex.wrapT = THREE.RepeatWrapping;
+bedWallTex.repeat.set(SX, BED_H);   // 1 csempe / blokk
+const bedWallMat = new THREE.MeshBasicMaterial({ map: bedWallTex, color: 0x808080, side: THREE.DoubleSide });
+const EPS = 0.02;
+for (const [px, pz, rotY] of [
+  [SX / 2, -EPS, 0],                 // z = 0 perem
+  [SX / 2, SZ + EPS, Math.PI],       // z = SZ perem
+  [-EPS, SZ / 2, -Math.PI / 2],      // x = 0 perem
+  [SX + EPS, SZ / 2, Math.PI / 2],   // x = SX perem
+]) {
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(SX, BED_H), bedWallMat);
+  w.position.set(px, BED_H / 2, pz);
+  w.rotation.y = rotY;
+  scene.add(w);
+}
+
 // felhők (pixeles, lassan úszó)
 const cloudCanvas = document.createElement('canvas');
 cloudCanvas.width = cloudCanvas.height = 128;
@@ -929,8 +967,9 @@ function setBlock(x, y, z, id) {
   world[idx(x, y, z)] = id;
   recomputeColH(x, z);
   if (id === AIR) {
-    // térképszélen a "külső óceán" azonnal beömlik; egyébként a szomszéd folyadék terjed be
-    if (y <= SEA && (x === 0 || x === SX - 1 || z === 0 || z === SZ - 1)) {
+    // térképszélen a "külső óceán" azonnal beömlik (de csak a külső tengerfenék,
+    // SEA-6 fölött — az alatt már bedrock van kint, nem víz); egyébként a szomszéd folyadék terjed be
+    if (y <= SEA && y >= SEA - 6 && (x === 0 || x === SX - 1 || z === 0 || z === SZ - 1)) {
       world[idx(x, y, z)] = WATER;
       recomputeColH(x, z);
       waterQ.add(WK(x, y, z));
